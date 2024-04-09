@@ -46,3 +46,12 @@ class ContactResponse(ContactModel):
 
     class Config:
         from_attributes = True
+
+
+class PasswordResetRequest(BaseModel):
+    email: str
+
+
+class PasswordReset(BaseModel):
+    token: str
+    new_password: str

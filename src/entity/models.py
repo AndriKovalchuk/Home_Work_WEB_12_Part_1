@@ -1,5 +1,6 @@
 import enum
 from datetime import date
+from typing import Any
 
 from sqlalchemy import (Boolean, DateTime, Enum, ForeignKey, Integer, String,
                         func)
@@ -43,3 +44,4 @@ class User(Base):
     updated_at: Mapped[date] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
     role: Mapped[Enum] = mapped_column(Enum(Role), default=Role.user, nullable=True)
     confirmed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
+    reset_token: Mapped[str] = mapped_column(String, nullable=True)

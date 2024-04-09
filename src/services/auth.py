@@ -2,7 +2,6 @@ import pickle
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-import bcrypt
 import redis
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
@@ -13,25 +12,21 @@ from src.conf.config import config
 from src.database.db import get_db
 from src.repository import users as repository_users
 
+from passlib.context import CryptContext
+
 
 class Auth:
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
     now_utc = datetime.now(timezone.utc)
     SECRET_KEY = config.SECRET_KEY_JWT
     ALGORITHM = config.ALGORITHM
     cache = redis.Redis(host=config.REDIS_DOMAIN, port=config.REDIS_PORT, db=0, password=config.REDIS_PASSWORD)
 
-    def hash_password(self, password: str) -> str:
-        pwd_bytes = password.encode('utf-8')
-        salt = bcrypt.gensalt()
-        hashed_password = bcrypt.hashpw(password=pwd_bytes, salt=salt)
-        return str(hashed_password)
-
     def verify_password(self, plain_password, hashed_password):
-        hashed_password_bytes = hashed_password.encode('utf-8')
-        return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password_bytes)
+        return self.pwd_context.verify(plain_password, hashed_password)
 
     def get_password_hash(self, password: str):
-        return self.hash_password(password)
+        return self.pwd_context.hash(password)
 
     oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 

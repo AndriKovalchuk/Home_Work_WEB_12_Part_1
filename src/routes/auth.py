@@ -7,9 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.db import get_db
 from src.repository import users as repository_users
+from src.schemas.schemas import PasswordResetRequest, PasswordReset
 from src.schemas.user import RequestEmail, TokenModel, UserModel, UserResponse
 from src.services.auth import auth_service
-from src.services.email import send_email
+from src.services.email import send_email, send_password_reset_email
 
 router = APIRouter(prefix='/auth', tags=["Authorization"])
 get_refresh_token = HTTPBearer()
@@ -84,3 +85,29 @@ async def request_email(body: RequestEmail, background_tasks: BackgroundTasks, r
 @router.get('/{username}')
 async def open_email_tracking(username: str, response: Response, db: AsyncSession = Depends(get_db)):
     return FileResponse("src/static/1x1.png", media_type="image/png", content_disposition_type="inline")
+
+
+@router.post("/forgot_password")
+async def forgot_password(body: PasswordResetRequest, request: Request, db: AsyncSession = Depends(get_db)):
+    user = await repository_users.get_user_by_email(body.email, db)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    reset_token = auth_service.create_email_token({"sub": body.email})
+    await send_password_reset_email(user.email, user.username, reset_token, str(request.base_url))
+
+    await repository_users.store_reset_token(body.email, reset_token, db)
+
+    return {"message": "Reset password link sent to your email"}
+
+
+@router.post("/reset_password/{token}")
+async def reset_password(body: PasswordReset, db: AsyncSession = Depends(get_db)):
+    email = await auth_service.get_email_from_token(body.token)
+    user = await repository_users.get_user_by_email(email, db)
+
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not await repository_users.verify_reset_token(email, body.token, db):
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+    await repository_users.update_password(email, body.new_password, db)
+    return {"message": "Password reset successfully"}
